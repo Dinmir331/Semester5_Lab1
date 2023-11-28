@@ -26,19 +26,37 @@
 #include "font.h"
 
 #include <stdio.h>
-#define WIDTH 32
-#define HEIGHT 16
+#define WIDTH 32 //Ширина светодиодной панели
+#define HEIGHT 16 //Высота светодиодной панели
 
 //difficulty very easy = 1000, easy = 300, medium = 100, hard = 30, very hard=10, terror = 1
-uint16_t difficulty = 100;
+uint16_t difficulty = 100; // Шаг по времени для движения мяча
+
+volatile uint32_t inter_time = 0; // Таймер миллисекунд
+uint32_t time_last = 0; // Переменная для указания шага обновления координаты шарика
+
+uint8_t ballX = WIDTH / 2;  // Координата мяча по оси X, установка мяча в центре
+uint8_t ballY = HEIGHT / 2;  // Координата мяча по оси Y, установка мяча в центре
+uint8_t ballSpeedX = 1; // Скорость мяча по оси X
+uint8_t ballSpeedY = 1; // Скорость мяча по оси Y
 
 //Potentiometers
-float adc_value1 = 0;
-float adc_value2 = 0;
-float adc_filt_val1 = 0;
-float adc_filt_val2 = 0;
-uint8_t value1, value2;
-float k = 0.1;
+float adc_value1 = 0; // Значение с потенциометра 1
+float adc_value2 = 0; // Значение с потенциометра 2
+float adc_filt_val1 = 0; //Фильтрованное значение потенциометра 1
+float adc_filt_val2 = 0; // Фильтрованное значение потенциометра 2
+uint8_t value1, value2; // Пропорциональное значение потенциометра 1 и 2
+float k = 0.1; // Коэффициент фильтрации\
+
+uint8_t score1_left, score2_right; // Счет левого и правого игрока
+uint8_t plat_lenght = 5; // Длина платформы игрока
+
+uint8_t flag_score = 0; // Флаг для показа счета
+uint8_t shift1 = 0; //Сдвиг числа счета игрока 1 при 2 символах
+uint8_t shift2 = 0; //Сдвиг числа счета игрока 2 при 2 символах
+
+extern uint8_t data1[16], data2[16], data3[16], data4[16]; //Буфер для заполнения матрицы лед-панели
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -48,23 +66,6 @@ float k = 0.1;
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
-//сверху вниз от 5у до 10у, слева направо от 12х до 20х
-volatile uint32_t inter_time = 0;
-uint32_t time_last = 0;
-uint8_t ballX = WIDTH / 2;  // Начальная координата X
-uint8_t ballY = HEIGHT / 2;  // Начальная координата Y
-uint8_t ballSpeedX = 1; // Скорость по X
-uint8_t ballSpeedY = 1; // Скорость по Y
-
-uint8_t score1_left, score2_right;
-uint8_t plat_lenght = 5;
-
-uint8_t flag_score = 0;
-uint8_t shift1 = 0;
-uint8_t shift2 = 0;
-
-extern uint8_t data1[16], data2[16], data3[16], data4[16];
 
 /* USER CODE END PD */
 
@@ -99,131 +100,134 @@ static void MX_ADC2_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-uint8_t player1_left() {
-	uint8_t y = 1 + value1;
-	disp1color_DrawLine(0, y, 0, y + plat_lenght);
-	return y;
+uint8_t player1_left() { // функция для определения положения платформы игрока 1
+	uint8_t y = 1 + value1; // Положение платформы игрока 1
+	disp1color_DrawLine(0, y, 0, y + plat_lenght); // Рисование платформы 1
+	return y; // возвращение положения платформы 1
 }
 
-uint8_t player2_right() {
-	uint8_t y = 1 + value2;
-	disp1color_DrawLine(31, y, 31, y + plat_lenght);
-	return y;
+uint8_t player2_right() { // функция для определения положения платформы игрока 2
+	uint8_t y = 1 + value2; //Положение платформы игрока 2
+	disp1color_DrawLine(31, y, 31, y + plat_lenght);//Рисование платформы 2
+	return y; // возвращение положения платформы 2
 }
 
-void game() {
-	uint8_t player1, player2;
+void game() { // функция для реализации игрового процесса
+	uint8_t player1, player2; // Реальное положение платформы игрока 1 и 2
 	player1 = player1_left();
 	player2 = player2_right();
-	if (ballX == 0 || ballX == 31) {
-		if (ballX == 0) {
-			if (ballY < player1 || ballY > (player1 + plat_lenght)) {
-				score1_left++;
-				ballX = WIDTH / 2;
-				ballY = HEIGHT / 2;
-				time_last = inter_time + difficulty * 20;
-				flag_score = 1;
+	if (ballX == 0 || ballX == 31) { // находится ли мяч у левой и правой границы
+		if (ballX == 0) { // если мяч находится у левой границы
+			if (ballY < player1 || ballY > (player1 + plat_lenght)) { //если мяч находится вне координат платформы
+				score1_left++; // увеличение счета 2 игрока
+				ballX = WIDTH / 2; // возращение мяча в начальное положение по X
+				ballY = HEIGHT / 2; // возращение мяча в начальное положение по Y
+				time_last = inter_time + difficulty * 20; //изменение времени ожидания, перед началом нвого раунда
+				flag_score = 1; // поднятие флага для вывода счета
 			} else {
-				BallPosition();
+				BallPosition(); // функция для изменения положения мяча
 			}
 		} else {
 			if (ballY < player2 || ballY > (player2 + plat_lenght)) {
-				score2_right++;
-				ballX = WIDTH / 2;
-				ballY = HEIGHT / 2;
-				time_last = inter_time + difficulty * 20;
-				flag_score = 1;
+				score2_right++; // увеличение счета 2 игрока
+				ballX = WIDTH / 2; // возращение мяча в начальное положение по X
+				ballY = HEIGHT / 2; // возращение мяча в начальное положение по Y
+				time_last = inter_time + difficulty * 20; //изменение времени ожидания, перед началом нвого раунда
+				flag_score = 1; // поднятие флага для вывода счета
 			} else {
-				BallPosition();
+				BallPosition(); // функция для изменения положения мяча
 			}
 		}
 	} else {
-		BallPosition();
+		BallPosition(); // функция для изменения положения мяча
 	}
 
-	if ((10 * difficulty + inter_time) <= time_last) {
+	if ((10 * difficulty + inter_time) <= time_last) { // условие для временного вывода счета перед началом нового раунда
 		flag_score = 1;
 	} else {
 		flag_score = 0;
 	}
 }
 
-void scorer() {
-	char buffer1[3];
-	char buffer2[3];
+void scorer() { // функция для вывода счета игроков
+	char buffer1[3]; //Буфер для вывода счета в строку 2
+	char buffer2[3]; //Буфер для вывода счета в строку 1
 
-	sprintf(buffer1, "%d", score1_left);
+	sprintf(buffer1, "%d", score1_left); // преобразование числа в строку
 	sprintf(buffer2, "%d", score2_right);
 
-	if (score1_left == 10) {
-		shift1 = 3;
+	if (score1_left == 10) { // при счете игрока 2 == 10 сдвигаем число для лучшего отображения
+		shift1 = 3; //Сдвиг увеличивается с 0 до 3 пикселей
 	}
-	if (score2_right == 10) {
-		shift2 = 3;
+	if (score2_right == 10) { // при счете игрока 2 == 10 сдвигаем число для лучшего отображения
+		shift2 = 3; //Сдвиг увеличивается с 0 до 3 пикселей
 	}
 
-	if (flag_score) {
+	if (flag_score) { // вывод счета на экран
 		disp1color_printf(6 - shift1, 4, FONTID_6X8M, buffer2);
 		disp1color_printf(21 - shift2, 4, FONTID_6X8M, buffer1);
 	}
 }
 
 
-void BallPosition() {
-	uint8_t player1, player2;
+void BallPosition() { // функция для изменения положения мяча
+	uint8_t player1, player2; // // Реальное положение платформы игрока 1 и 2
 	player1 = player1_left();
 	player2 = player2_right();
-	if (inter_time >= time_last) {
-		ballX = ballX + ballSpeedX;
-		ballY = ballY + ballSpeedY;
-		if (ballX == 0 || ballX == 31) {
-			ballSpeedX = -ballSpeedX;
-		} else if (ballX == 1 && (ballY >= player1 && ballY <= (player1 + plat_lenght))) {
-			ballSpeedX = -ballSpeedX;
-		} else if (ballX == 30 && (ballY >= player2 && ballY <= (player2 + plat_lenght))){
-			ballSpeedX = -ballSpeedX;
+	// условие движения мяча по полю
+	if (inter_time >= time_last) { // когда время на таймере больше заданного значения, изменяем положение мяча
+		ballX = ballX + ballSpeedX; // смещение координаты мяча по оси Х
+		ballY = ballY + ballSpeedY; // смещение координаты мяча по оси Х
+		if (ballX == 0 || ballX == 31) { // находится ли мяч у левой и правой границы
+			ballSpeedX = -ballSpeedX; //изменение смешения шарика на обратное
+		} else if (ballX == 1 && (ballY >= player1 && ballY <= (player1 + plat_lenght))) { //касается ли мяч платформы игрока 1
+			ballSpeedX = -ballSpeedX; //изменение смешения шарика на обратное
+		} else if (ballX == 30 && (ballY >= player2 && ballY <= (player2 + plat_lenght))){ //касается ли мяч платформы игрока 2
+			ballSpeedX = -ballSpeedX; //изменение смешения шарика на обратное
 		}
-		if (ballY == 1 || ballY == 14) {
-			ballSpeedY = -ballSpeedY;
+		if (ballY == 1 || ballY == 14) { // находится ли мяч у нижней и верхней стенки
+			ballSpeedY = -ballSpeedY; //изменение смешения шарика на обратное
 		}
+		//добавление шага по времени к последнему времени таймера, для задания частоты изменения положения мяча
 		time_last = inter_time + difficulty;
 	}
 }
 
-float expFilter1(float inputValue) {
-	static float FiltVal = 0;
-	FiltVal += (inputValue - FiltVal) * k;
-	return FiltVal;
+float expFilter1(float inputValue) { //экспоненциальный фильтр для потенциометра 1
+	static float FiltVal = 0; //переменная запоминающая прошлое значения с потенциометра
+	FiltVal += (inputValue - FiltVal) * k; //изменение нового значения потенциометра по коэффициенту
+	return FiltVal; //возращение нового значения с потенциометра
 }
 
-float expFilter2(float inputValue) {
-	static float FiltVal = 0;
-	FiltVal += (inputValue - FiltVal) * k;
-	return FiltVal;
+float expFilter2(float inputValue) { //экспоненциальный фильтр для потенциометра 2
+	static float FiltVal = 0; //переменная запоминающая прошлое значения с потенциометра
+	FiltVal += (inputValue - FiltVal) * k; //изменение нового значения потенциометра по коэффициенту
+	return FiltVal; //возращение нового значения с потенциометра
 }
 
-void Potentiometers() {
-	HAL_ADC_Start(&hadc1);
-	HAL_ADC_Start(&hadc2);
+void Potentiometers() { // функция управления потенциометрами
+	HAL_ADC_Start(&hadc1); //включение АЦП для оцифровки аналогого сигнала 1
+	HAL_ADC_Start(&hadc2); //включение АЦП для оцифровки аналогого сигнала 2
 
-	HAL_ADC_PollForConversion(&hadc1, 5);
-	HAL_ADC_PollForConversion(&hadc2, 5);
+	HAL_ADC_PollForConversion(&hadc1, 5); //ожидание окончания преобразования АЦП по истечению 5 тактов
+	HAL_ADC_PollForConversion(&hadc2, 5); //ожидание окончания преобразования АЦП по истечению 5 тактов
 
-	adc_value1 = HAL_ADC_GetValue(&hadc1);
-	adc_value2 = HAL_ADC_GetValue(&hadc2);
+	adc_value1 = HAL_ADC_GetValue(&hadc1); //получение значения с потенциометра 1
+	adc_value2 = HAL_ADC_GetValue(&hadc2); //получение значения с потенциометра 2
 
-	adc_filt_val1 = expFilter1(adc_value1);
-	adc_filt_val2 = expFilter2(adc_value2);
+	adc_filt_val1 = expFilter1(adc_value1); //получение фильтрованного значения с потенциометра 1
+	adc_filt_val2 = expFilter2(adc_value2); //получение фильтрованного значения с потенциометра 1
 
 
-	HAL_ADC_Stop(&hadc1);
-	HAL_ADC_Stop(&hadc2);
+	HAL_ADC_Stop(&hadc1); //остановка АЦП преобразований
+	HAL_ADC_Stop(&hadc2); //остановка АЦП преобразований
 
+	//пропорциональное изменение значения с потенциометра в значения от 0 до 9
 	value1 = adc_filt_val1 * (14 - plat_lenght) / 4096;
 	value2 = adc_filt_val2 * (14 - plat_lenght) / 4096;
 }
 
-void disp_row(uint8_t row) {
+void disp_row(uint8_t row) { //заполнение буфера матрицы
 
 	if (row == 0) {
 
@@ -282,14 +286,14 @@ void disp_row(uint8_t row) {
 	HAL_GPIO_WritePin(nOE_GPIO_Port, nOE_Pin, GPIO_PIN_RESET);
 }
 
-void show_screen() {
-	disp1color_DrawPixel(ballX, ballY, 1);
-	disp1color_DrawLine(0, 0, 31, 0);
-	disp1color_DrawLine(0, 15, 31, 15);
+void show_screen() { //отрисовка экрана игры: мяча и стенок
+	disp1color_DrawPixel(ballX, ballY, 1); //отсовка мяча
+	disp1color_DrawLine(0, 0, 31, 0); //отрисовка верхней стены
+	disp1color_DrawLine(0, 15, 31, 15); // отрисовка нижней стены
 
-	disp1color_UpdateFromBuff();
-	prepare_data();
-	for (uint8_t i = 0; i < 20; i++) {
+	disp1color_UpdateFromBuff(); //обновленеи буфера
+	prepare_data(); //подготовка данных для заполнения
+	for (uint8_t i = 0; i < 20; i++) { //заполнение каждого пикселя светодиодной панели
 		disp_row(0);
 		disp_row(1);
 		disp_row(2);
@@ -332,7 +336,7 @@ int main(void)
   MX_ADC2_Init();
   /* USER CODE BEGIN 2 */
 
-  HAL_TIM_Base_Start_IT(&htim1);
+  HAL_TIM_Base_Start_IT(&htim1); //включение  таймера
 
   /* USER CODE END 2 */
 
@@ -340,15 +344,15 @@ int main(void)
   /* USER CODE BEGIN WHILE */
 
 	while (1) {
-		disp1color_FillScreenbuff(0);
+		disp1color_FillScreenbuff(0); //стирание прошлых данных матрицы
 
-		Potentiometers();
+		Potentiometers(); // функция управления потенциометрами
 
-		game();
+		game(); // функция для реализации игрового процесса
 
-		scorer();
+		scorer(); // функция для вывода счета игроков
 
-		show_screen();
+		show_screen(); //отрисовка экрана игры: мяча и стенок
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
