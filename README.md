@@ -14,9 +14,8 @@
 
 Познакомиться с итоговым выполнением работы и реализацией игрового процесса игры "Пинг-понг" можно при просмотре видео по ссылке на Гугл-диск: https://drive.google.com/file/d/13UrktWx37nviBoMGRGPE6KyqZ2AADF9k/view?usp=sharing 
 
-# SPI
+# SPI - Serial Peripheral Interface
 
-### Serial Peripheral Interface - SPI
 (**Serial Peripheral Interface**, **SPI bus** —
 последовательный периферийный интерфейс, шина SPI)
 — последовательный синхронный стандарт передачи данных,
